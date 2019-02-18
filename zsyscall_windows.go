@@ -359,7 +359,7 @@ func impersonateSelf(level uint32) (err error) {
 	return
 }
 
-func revertToSelf() (err error) {
+func RevertToSelf() (err error) {
 	r1, _, e1 := syscall.Syscall(procRevertToSelf.Addr(), 0, 0, 0, 0)
 	if r1 == 0 {
 		if e1 != 0 {
@@ -371,7 +371,7 @@ func revertToSelf() (err error) {
 	return
 }
 
-func openThreadToken(thread syscall.Handle, accessMask uint32, openAsSelf bool, token *windows.Token) (err error) {
+func OpenThreadToken(thread syscall.Handle, accessMask uint32, openAsSelf bool, token *windows.Token) (err error) {
 	var _p0 uint32
 	if openAsSelf {
 		_p0 = 1
@@ -389,7 +389,7 @@ func openThreadToken(thread syscall.Handle, accessMask uint32, openAsSelf bool, 
 	return
 }
 
-func getCurrentThread() (h syscall.Handle) {
+func GetCurrentThread() (h syscall.Handle) {
 	r0, _, _ := syscall.Syscall(procGetCurrentThread.Addr(), 0, 0, 0, 0)
 	h = syscall.Handle(r0)
 	return

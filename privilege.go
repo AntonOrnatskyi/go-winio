@@ -182,9 +182,9 @@ func newThreadToken() (windows.Token, error) {
 	}
 
 	var token windows.Token
-	err = openThreadToken(getCurrentThread(), syscall.TOKEN_ADJUST_PRIVILEGES|syscall.TOKEN_QUERY, false, &token)
+	err = OpenThreadToken(GetCurrentThread(), syscall.TOKEN_ADJUST_PRIVILEGES|syscall.TOKEN_QUERY, false, &token)
 	if err != nil {
-		rerr := revertToSelf()
+		rerr := RevertToSelf()
 		if rerr != nil {
 			panic(rerr)
 		}
@@ -194,7 +194,7 @@ func newThreadToken() (windows.Token, error) {
 }
 
 func releaseThreadToken(h windows.Token) {
-	err := revertToSelf()
+	err := RevertToSelf()
 	if err != nil {
 		panic(err)
 	}

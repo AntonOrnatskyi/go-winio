@@ -77,6 +77,10 @@ func (f *win32Pipe) SetDeadline(t time.Time) error {
 	return nil
 }
 
+func (f *win32Pipe) GetHandle() syscall.Handle {
+	return f.handle
+}
+
 // CloseWrite closes the write side of a message pipe in byte mode.
 func (f *win32MessageBytePipe) CloseWrite() error {
 	if f.writeClosed {
@@ -140,7 +144,7 @@ func (s pipeAddress) String() string {
 // DialPipe connects to a named pipe by path, timing out if the connection
 // takes longer than the specified duration. If timeout is nil, then we use
 // a default timeout of 5 seconds.  (We do not use WaitNamedPipe.)
-func DialPipe(path string, timeout *time.Duration) (net.Conn, error) {
+func DialPipe(path string, timeout *time.Duration) (PipeComplete, error) {
 	var absTimeout time.Time
 	if timeout != nil {
 		absTimeout = time.Now().Add(*timeout)
@@ -321,9 +325,29 @@ type PipeConfig struct {
 	OutputBufferSize int32
 }
 
+type pipeSpecific interface {
+	GetHandle() syscall.Handle
+}
+
+// PipeComplete combines net.Conn with pipeInfo interface for getting pipe insides
+type PipeComplete interface {
+	net.Conn
+	pipeSpecific
+}
+
+type pipeListener interface {
+	AcceptPipe() (PipeComplete, error)
+}
+
+// PipeCompleteListener returns PipeComplete over net.Conn
+type PipeCompleteListener interface {
+	net.Listener
+	pipeListener
+}
+
 // ListenPipe creates a listener on a Windows named pipe path, e.g. \\.\pipe\mypipe.
 // The pipe must not already exist.
-func ListenPipe(path string, c *PipeConfig) (net.Listener, error) {
+func ListenPipe(path string, c *PipeConfig) (PipeCompleteListener, error) {
 	var (
 		sd  []byte
 		err error
@@ -388,6 +412,27 @@ func connectPipe(p *win32File) error {
 }
 
 func (l *win32PipeListener) Accept() (net.Conn, error) {
+	ch := make(chan acceptResponse)
+	select {
+	case l.acceptCh <- ch:
+		response := <-ch
+		err := response.err
+		if err != nil {
+			return nil, err
+		}
+		if l.config.MessageMode {
+			return &win32MessageBytePipe{
+				win32Pipe: win32Pipe{win32File: response.f, path: l.path},
+			}, nil
+		}
+		return &win32Pipe{win32File: response.f, path: l.path}, nil
+	case <-l.doneCh:
+		return nil, ErrPipeListenerClosed
+	}
+}
+
+// AcceptPipe - extended method for returning not only net.Conn, but pipe specific parts
+func (l *win32PipeListener) AcceptPipe() (PipeComplete, error) {
 	ch := make(chan acceptResponse)
 	select {
 	case l.acceptCh <- ch:
